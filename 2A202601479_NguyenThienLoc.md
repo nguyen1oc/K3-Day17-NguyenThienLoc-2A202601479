@@ -141,7 +141,7 @@ result hash         4379e4c5d9f3    4379e4c5d9f3     không đổi   ✓
 thời gian (ms)                 —           258.1     (tham khảo)
 
 => rows scanned giảm 37.
-
+```
 ---
 
 ### 4.2 · Bài B — Streaming Consumer bị Crash giữa batch (Delivery Semantics & Idempotency)
@@ -150,7 +150,19 @@ thời gian (ms)                 —           258.1     (tham khảo)
 |---|---|
 | **Nguyên nhân** | Tiến trình consumer gọi `consumer.commit()` trước khi `write_batch(...)`. Khi bị kill/crash giữa chừng, offset đã bị ghi nhận dịch chuyển nhưng dữ liệu batch chưa kịp ghi vào DB $\rightarrow$ Gây **mất dữ liệu** (At-most-once semantics). Nếu chỉ đổi thứ tự ghi trước commit sau, câu lệnh `INSERT` thuần túy sẽ làm **lặp trùng dữ liệu** khi replay batch. |
 | **Cách khắc phục** | Trong [`ingest/consumer.py`](file:///c:/Users/nguyenloc/OneDrive/Desktop/vinAi/phase_2/day_17/K3-Day17-NguyenThienLoc-2A202601479/ingest/consumer.py):<br>**(1)** Khai báo `PRIMARY KEY (event_id)` cho bảng `bronze_events_stream`.<br>**(2)** Chuyển sang At-least-once + Idempotent write: Ghi DB trước bằng câu lệnh `INSERT ... ON CONFLICT (event_id) DO UPDATE SET ...`, thử nghiệm crash, rồi mới `consumer.commit()` offset sau cùng. |
-| **Bằng chứng** | Kết quả chạy `make crash-test` đạt chuẩn 100% (không mất bản ghi, không trùng bản ghi, C == A):<br>```text\ntopic: 20,000 message · batch 500 · giết ở lô 7\n  A. chạy một mạch: 20,000 hàng / 20,000 event_id\n  B. bị giết ở lô 7: offset đã commit 3,000\n  C. khởi động lại: đã ghi 17,000 message -> 20,000 hàng / 20,000 event_id\n  ----------------------------------------------------------\n  không mất bản ghi                 ✓\n  không trùng bản ghi               ✓\n  C == A                            ✓\n  ----------------------------------------------------------\n  BÀI MỞ RỘNG B: ĐẠT ✓\n``` |
+| **Bằng chứng** | Kết quả chạy `make crash-test` đạt chuẩn 100% (không mất bản ghi, không trùng bản ghi, C == A). |
+```text
+topic: 20,000 message · batch 500 · giết ở lô 7
+  A. chạy một mạch: 20,000 hàng / 20,000 event_id
+  B. bị giết ở lô 7: offset đã commit 3,000
+  C. khởi động lại: đã ghi 17,000 message -> 20,000 hàng / 20,000 event_id
+  ----------------------------------------------------------
+  không mất bản ghi                 ✓
+  không trùng bản ghi               ✓
+  C == A                            ✓
+  ----------------------------------------------------------
+  BÀI MỞ RỘNG B: ĐẠT ✓
+```
 
 ---
 
