@@ -131,6 +131,7 @@ Bạn đã thực hiện **cả 2 bài mở rộng A và B (+10 điểm thưởn
 | **Nguyên nhân** | **(1) Small-file problem:** Thư mục `data/gold_events/` chứa 5,000 file Parquet nhỏ (mỗi file vài chục KB), không được partition hay sắp xếp thứ tự khiến DuckDB phải mở quét hàng nghìn file lãng phí I/O.<br>**(2) Predicate không Sargable:** Truy vấn dùng `strftime(event_time, '%Y-%m-%d') = '2026-08-09'` làm bọc cột `event_time` trong hàm, khiến engine không thể dùng statistics của file/row group để bỏ qua các file không liên quan. |
 | **Cách khắc phục** | **(1) `tools/compact.py`:** Thực hiện `COPY ... TO 'data/gold_events_v2'` gộp 5.000 file nhỏ thành 14 file Parquet lớn (`hive_partitioning` theo `event_date`, `ORDER BY customer_name, event_time`).<br>**(2) `queries/dashboard.sql`:** Đọc từ `data/gold_events_v2/*/*.parquet` với `hive_partitioning = true` và đổi điều kiện lọc sang `event_date = '2026-08-09'`. |
 | **Bằng chứng** | Số dòng dữ liệu quét (`rows scanned`) giảm **37.7×** (từ 5,000,000 xuống 132,790 dòng), số file giảm từ 5,000 xuống **14 file**, và kết quả Hash (`4379e4c5d9f3`) **không đổi** |
+```bash
 --------------------------------------------------------------
                            TRƯỚC        HIỆN TẠI      MỤC TIÊU
 rows scanned           5,000,000         132,790     ≤ 500,000   ✓
@@ -139,7 +140,7 @@ files                      5,000              14     ít hơn       ✓
 result hash         4379e4c5d9f3    4379e4c5d9f3     không đổi   ✓
 thời gian (ms)                 —           258.1     (tham khảo)
 
-=> rows scanned giảm 37.7× (yêu cầu ≥ 10×) ✓
+=> rows scanned giảm 37.
 
 ---
 
